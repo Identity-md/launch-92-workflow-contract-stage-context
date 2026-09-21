@@ -1,0 +1,22 @@
+{
+  "kind": "evm_project",
+  "token": {
+    "contract": "CliffhangerToken",
+    "name": "Cliffhanger",
+    "symbol": "CLIF",
+    "decimals": 18
+  },
+  "pool": {
+    "pairedCurrency": "0x0000000000000000000000000000000000000000",
+    "fee": 3000,
+    "tickSpacing": 60,
+    "initialPrice": "79228162514264337593543950336"
+  },
+  "contracts": [
+    {
+      "contract": "VestingCliff",
+      "constructorArgs": ["$token"]
+    }
+  ],
+  "notes": "Cliffhanger: the CLIF launch token plus the single application contract VestingCliff, as accepted in src/.\n\nToken (src/CliffhangerToken.sol). CliffhangerToken is a self-contained fixed-supply ERC-20 with the zero-argument constructor the policy requires. name() is \"Cliffhanger\", symbol() is \"CLIF\", decimals() is 18, and the constructor mints the whole 1,000,000,000 CLIF (10^27 minor units) to msg.sender and emits Transfer(address(0), msg.sender, TOTAL_SUPPLY). Because construction runs with the factory as msg.sender, the entire supply lands on the factory, which is what the launch expects. totalSupply is immutable and there is no mint, burn, owner, admin, pause or upgrade path, so no post-construction supply change is possible. The manifest therefore carries no supply or allocation fields; supply, split, treasury and contributor lock come from the launch policy, not from here.\n\nApplication contract (src/VestingCliff.sol). VestingCliff has exactly one constructor parameter, `address token_`, filled by $token so it binds to the CLIF deployed in this same launch. The parameter is address-typed, which is the only place a reference is allowed, and $token resolves before any project contract, so the single-element contracts list is already in constructor dependency order and needs no $contract:EarlierName reference. The constructor rejects a token address with empty code (InvalidToken) and stores the address in the immutable `token`; nothing else is configured, so the factory's rule of no initialization calls is satisfied. The constructor is nonpayable and performs no external call other than reading code length.\n\nNo $owner argument appears because the accepted source has no privileged role to assign: VestingCliff has no owner, admin, fee recipient, pause, revoke or upgrade function, no DELEGATECALL, CALLCODE or SELFDESTRUCT, and no use of msg.sender in its constructor. Schedules are irrevocable; the funder is recorded only for indexing and holds no authority over a schedule once created. Adding an owner argument would contradict the accepted implementation, so ownership stays purely a policy concern and no privileged wallet is named anywhere in this manifest.\n\nBehaviour the manifest commits to, for the reviewer's cross-check: createSchedule(beneficiary, amount, cliff, end) requires amount > 0, a beneficiary that is neither the zero address nor the contract itself, and block.timestamp <= cliff <= end with end != start; it pulls `amount` via transferFrom and verifies the balance delta equals `amount`, so a fee-on-transfer or rebasing token reverts with AmountMismatch. Vesting is zero before cliff, linear as amount * (t - cliff) / (end - cliff) between cliff and end, and the full amount at or after end; cliff == end releases everything at end. claim(id) is beneficiary-only, follows checks-effects-interactions (claimed and totalLocked update and Claimed emits before the transfer) and is additionally guarded by a nonReentrant lock, which the accepted test suite exercises with a malicious reentrant token. Every state change emits an event.\n\nPool. Sepolia policy v3 defaults: paired against native ETH (zero address), fee 3000, tickSpacing 60, initialPrice 79228162514264337593543950336 (sqrtPriceX96 for a 1:1 ratio). The pool has no hook, and these are pool initialization parameters, not a valuation claim. The factory seeds liquidity with the launch token only.\n\nScope. Only CliffhangerToken and VestingCliff exist in the accepted tree, and both are named here; their ABIs are exported at docs/abi/CliffhangerToken.json and docs/abi/VestingCliff.json by the source assignments. Chain selection, policy version, allocations, gas ceiling, attestation and bytecode hashes are service inputs and are deliberately absent. This assignment changed no file other than launch.json."
+}
