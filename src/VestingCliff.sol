@@ -11,7 +11,8 @@ interface IERC20Minimal {
 /// @notice Irrevocable token vesting with a cliff.
 /// A funder locks `amount` tokens for a beneficiary. The schedule starts at the block in which it is
 /// created (`start`). Nothing is vested before `cliff`. From `cliff` on, the vested amount is
-/// `amount * (now - start) / (end - start)`, reaching the full amount at `end`. The beneficiary may
+/// `amount * (now - cliff) / (end - cliff)`, reaching the full amount at `end`. If `cliff == end`,
+/// everything vests at `end`. The beneficiary may
 /// claim whatever is vested and not yet claimed. No one — not the funder, not a deployer — can revoke,
 /// pause or redirect a schedule. There is no owner, no fee and no upgradeability.
 contract VestingCliff {
@@ -172,10 +173,10 @@ contract VestingCliff {
     function _vested(Schedule storage s, uint256 timestamp) private view returns (uint256) {
         if (timestamp < s.cliff) return 0;
         if (timestamp >= s.end) return s.amount;
-        // start < end here (enforced at creation) and timestamp < end, so no division by zero and the
+        // cliff <= timestamp < end here, so no division by zero and the
         // result is strictly below amount. amount <= token supply so the product cannot overflow for
         // CLIF; Solidity checked math reverts for any token where it would.
-        return (s.amount * (timestamp - s.start)) / (s.end - s.start);
+        return (s.amount * (timestamp - s.cliff)) / (s.end - s.cliff);
     }
 
     /// @dev Calls the token, accepting both bool-returning and no-return ERC-20 implementations.

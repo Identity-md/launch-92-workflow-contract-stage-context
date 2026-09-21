@@ -41,12 +41,11 @@ Irrevocable CLIF vesting with a cliff.
 - Vested amount at time `t`:
   - `0` if `t < cliff`
   - `amount` if `t >= end`
-  - otherwise `amount * (t - start) / (end - start)` (rounded down).
+  - otherwise `amount * (t - cliff) / (end - cliff)` (rounded down).
 
-  So vesting accrues linearly from creation, but nothing is released before the cliff; at the cliff the
-  portion accrued since `start` becomes claimable at once. **Assumption:** this is the standard
-  "linear-from-start with cliff" reading of the brief (same as OpenZeppelin's VestingWallet with a cliff).
-  If the product intends "linear from cliff to end" (zero at the cliff), the formula must change before launch.
+  Vesting begins at the cliff, with zero vested at that instant when `cliff < end`, and grows linearly
+  until the end. Time between creation and the cliff does not accrue tokens. `start` records creation
+  time only. For `cliff == end`, the full amount vests at that time without division by zero.
 - `claim(id)` — only the schedule's beneficiary; transfers all vested-but-unclaimed CLIF to the beneficiary.
   Reverts with `NothingToClaim` if nothing is claimable.
 - Irrevocable: there is no revoke, cancel, withdraw, sweep, owner, admin, fee, pause or upgrade function.

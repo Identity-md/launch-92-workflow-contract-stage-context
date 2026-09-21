@@ -155,14 +155,29 @@ contract VestingCliffTest is Test {
 
     // ---------------------------------------------------------------- vesting
 
+    function test_cliffDoesNotReleasePreCliffAccrual() public {
+        uint256 id = _create(AMOUNT, T0 + 250, T0 + 1000);
+        vm.warp(T0 + 250);
+        assertEq(vesting.vestedAmount(id), 0);
+        assertEq(vesting.claimableAmount(id), 0);
+        vm.prank(beneficiary);
+        vm.expectRevert(abi.encodeWithSelector(VestingCliff.NothingToClaim.selector, id));
+        vesting.claim(id);
+        assertEq(vesting.getSchedule(id).claimed, 0);
+        assertEq(vesting.totalLocked(), AMOUNT);
+        assertEq(token.balanceOf(address(vesting)), AMOUNT);
+        assertEq(token.balanceOf(beneficiary), 0);
+    }
+
     function test_vested_curveWithCliff() public {
         uint256 id = _create(AMOUNT, T0 + 250, T0 + 1000);
         assertEq(vesting.vestedAmount(id), 0);
         assertEq(vesting.vestedAmountAt(id, T0 + 249), 0);
-        // At the cliff the time since start vests at once.
-        assertEq(vesting.vestedAmountAt(id, T0 + 250), AMOUNT / 4);
-        assertEq(vesting.vestedAmountAt(id, T0 + 500), AMOUNT / 2);
-        assertEq(vesting.vestedAmountAt(id, T0 + 999), (AMOUNT * 999) / 1000);
+        assertEq(vesting.vestedAmountAt(id, T0 + 250), 0);
+        assertEq(vesting.vestedAmountAt(id, T0 + 251), AMOUNT / 750);
+        assertEq(vesting.vestedAmountAt(id, T0 + 500), AMOUNT / 3);
+        assertEq(vesting.vestedAmountAt(id, T0 + 625), AMOUNT / 2);
+        assertEq(vesting.vestedAmountAt(id, T0 + 999), (AMOUNT * 749) / 750);
         assertEq(vesting.vestedAmountAt(id, T0 + 1000), AMOUNT);
         assertEq(vesting.vestedAmountAt(id, type(uint256).max), AMOUNT);
     }
@@ -197,6 +212,12 @@ contract VestingCliffTest is Test {
     function test_claim_atCliffAndPartial() public {
         uint256 id = _create(AMOUNT, T0 + 100, T0 + 1000);
         vm.warp(T0 + 100);
+        assertEq(vesting.claimableAmount(id), 0);
+        vm.prank(beneficiary);
+        vm.expectRevert(abi.encodeWithSelector(VestingCliff.NothingToClaim.selector, id));
+        vesting.claim(id);
+
+        vm.warp(T0 + 190);
         assertEq(vesting.claimableAmount(id), AMOUNT / 10);
 
         vm.expectEmit(true, true, false, true);
@@ -214,8 +235,16 @@ contract VestingCliffTest is Test {
 
         vm.warp(T0 + 550);
         vm.prank(beneficiary);
-        assertEq(vesting.claim(id), AMOUNT * 45 / 100);
-        assertEq(token.balanceOf(beneficiary), AMOUNT * 55 / 100);
+        assertEq(vesting.claim(id), AMOUNT * 40 / 100);
+        assertEq(token.balanceOf(beneficiary), AMOUNT / 2);
+        assertEq(vesting.totalLocked(), AMOUNT / 2);
+
+        vm.warp(T0 + 1000);
+        vm.prank(beneficiary);
+        assertEq(vesting.claim(id), AMOUNT / 2);
+        assertEq(token.balanceOf(beneficiary), AMOUNT);
+        assertEq(token.balanceOf(address(vesting)), 0);
+        assertEq(vesting.totalLocked(), 0);
     }
 
     function test_claim_fullAtEndThenNothing() public {
